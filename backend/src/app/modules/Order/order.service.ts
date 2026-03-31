@@ -4,6 +4,7 @@ import AppError from "../../errors/AppError";
 import InsufficientStockError from "../../errors/InsufficientStockError";
 import { Product } from "../Product/product.model";
 import { getProductStatus } from "../Product/product.utils";
+import { RestockQueueServices } from "../RestockQueue/restockQueue.service";
 import {
   orderStatuses,
   type TCreateOrderPayload,
@@ -150,6 +151,10 @@ const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
       updatedProduct.status = getProductStatus(updatedProduct.stockQuantity);
       await updatedProduct.save({ session });
     }
+
+    await RestockQueueServices.syncRestockQueueForProducts(uniqueProductIds, {
+      session,
+    });
 
     const [order] = await Order.create(
       [
@@ -308,6 +313,10 @@ const updateOrderStatusIntoDB = async (
       updatedProduct.status = getProductStatus(updatedProduct.stockQuantity);
       await updatedProduct.save({ session });
     }
+
+    await RestockQueueServices.syncRestockQueueForProducts(productIds, {
+      session,
+    });
 
     orderToCancel.status = "Cancelled";
     await orderToCancel.save({ session });

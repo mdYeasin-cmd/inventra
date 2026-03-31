@@ -1,6 +1,7 @@
 import httpStatus from "http-status";
 import AppError from "../../errors/AppError";
 import { Category } from "../Category/category.model";
+import { RestockQueueServices } from "../RestockQueue/restockQueue.service";
 import {
   type TCreateProductPayload,
   type TUpdateProductPayload,
@@ -27,6 +28,8 @@ const createProductIntoDB = async (payload: TCreateProductPayload) => {
     minimumStockThreshold: payload.minimumStockThreshold,
     status: getProductStatus(payload.stockQuantity),
   });
+
+  await RestockQueueServices.syncRestockQueueForProduct(product._id);
 
   const populatedProduct = await Product.findById(product._id).populate({
     path: "category",
@@ -106,6 +109,8 @@ const updateProductIntoDB = async (
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
+  await RestockQueueServices.syncRestockQueueForProduct(product._id);
+
   return attachProductStockInfo(product);
 };
 
@@ -125,6 +130,8 @@ const deleteProductFromDB = async (id: string) => {
   if (!product) {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
+
+  await RestockQueueServices.syncRestockQueueForProduct(product._id);
 
   return attachProductStockInfo(product);
 };
