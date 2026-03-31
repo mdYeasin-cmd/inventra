@@ -1,8 +1,8 @@
 import type { Request, Response } from "express";
-import catchAsync from "../../utils/catchAsync.js";
-import sendResponse from "../../utils/sendResponse.js";
 import httpStatus from "http-status";
-import { AuthServices } from "./auth.service.js";
+import { AuthServices } from "./auth.service";
+import catchAsync from "../../utils/catchAsync";
+import sendResponse from "../../utils/sendResponse";
 
 const signupUser = catchAsync(async (req: Request, res: Response) => {
   const result = await AuthServices.signupUserIntoDB(req.body);
@@ -10,7 +10,7 @@ const signupUser = catchAsync(async (req: Request, res: Response) => {
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: "User is logged in successfully",
+    message: "User is signup in successfully",
     data: result,
   });
 });
