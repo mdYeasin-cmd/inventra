@@ -1,8 +1,10 @@
 import AppError from "../../errors/AppError";
-import { hashPassword } from "../../utils/bcrypt";
+import { comparePassword, hashPassword } from "../../utils/bcrypt";
 import { IUser } from "../User/user.interface";
 import { User } from "../User/user.model";
 import httpStatus from "http-status";
+import { ILoginUser } from "./auth.interface";
+import { createToken } from "../../utils/jwtUtil";
 
 const signupUserIntoDB = async (userData: IUser) => {
   const { name, email, password } = userData;
@@ -30,6 +32,37 @@ const signupUserIntoDB = async (userData: IUser) => {
   return userWithoutPassword;
 };
 
+const loginUserIntoDB = async (loginData: ILoginUser) => {
+  const { email, password } = loginData;
+
+  const user = await User.findOne({ email }).select("+password");
+
+  if (!user) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This user is not found!");
+  }
+
+  const isPasswordMatched = await comparePassword(password, user.password);
+
+  if (!isPasswordMatched) {
+    throw new AppError(httpStatus.FORBIDDEN, "Password do not matched!");
+  }
+
+  const jwtPayload = {
+    userId: user?._id,
+    role: user?.role,
+  };
+
+  const accessToken = createToken(jwtPayload, "secret", 60); // 1 hour
+
+  const refreshToken = createToken(jwtPayload, "secret", 7 * 24 * 60 * 60); // 7 days
+
+  return {
+    accessToken,
+    refreshToken,
+  };
+};
+
 export const AuthServices = {
   signupUserIntoDB,
+  loginUserIntoDB,
 };
