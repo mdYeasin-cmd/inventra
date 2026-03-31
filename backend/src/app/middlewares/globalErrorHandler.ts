@@ -5,7 +5,9 @@ import handleZodError from "../errors/handleZodError";
 import handleValidationError from "../errors/handleValidationError";
 import handleCastError from "../errors/handleCastError";
 import handleDuplicateError from "../errors/handleDuplicateError";
+import handleInsufficientStockError from "../errors/handleInsufficientStockError";
 import AppError from "../errors/AppError";
+import InsufficientStockError from "../errors/InsufficientStockError";
 import type { TErrorSources } from "../interfaces/error";
 import { envVars } from "../config/env";
 
@@ -36,6 +38,11 @@ const globalErrorHandler: ErrorRequestHandler = (err, req, res, next) => {
     errorSources = simplifiedError.errorSources;
   } else if (err?.code === 11000) {
     const simplifiedError = handleDuplicateError(err);
+    statusCode = simplifiedError.statusCode;
+    message = simplifiedError.message;
+    errorSources = simplifiedError.errorSources;
+  } else if (err instanceof InsufficientStockError) {
+    const simplifiedError = handleInsufficientStockError(err);
     statusCode = simplifiedError.statusCode;
     message = simplifiedError.message;
     errorSources = simplifiedError.errorSources;

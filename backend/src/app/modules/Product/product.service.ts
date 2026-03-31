@@ -3,14 +3,10 @@ import AppError from "../../errors/AppError";
 import { Category } from "../Category/category.model";
 import {
   type TCreateProductPayload,
-  type TProductStatus,
   type TUpdateProductPayload,
 } from "./product.interface";
 import { Product } from "./product.model";
-
-const getProductStatus = (stockQuantity: number): TProductStatus => {
-  return stockQuantity === 0 ? "Out of Stock" : "Active";
-};
+import { attachProductStockInfo, getProductStatus } from "./product.utils";
 
 const ensureCategoryExists = async (categoryId: string) => {
   const category = await Category.findOne({ _id: categoryId, isDeleted: false });
@@ -37,7 +33,7 @@ const createProductIntoDB = async (payload: TCreateProductPayload) => {
     select: "name",
   });
 
-  return populatedProduct;
+  return populatedProduct ? attachProductStockInfo(populatedProduct) : populatedProduct;
 };
 
 const getAllProductsFromDB = async () => {
@@ -48,7 +44,7 @@ const getAllProductsFromDB = async () => {
     })
     .sort({ createdAt: -1 });
 
-  return products;
+  return products.map((product) => attachProductStockInfo(product));
 };
 
 const getSingleProductFromDB = async (id: string) => {
@@ -61,7 +57,7 @@ const getSingleProductFromDB = async (id: string) => {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  return product;
+  return attachProductStockInfo(product);
 };
 
 const updateProductIntoDB = async (
@@ -69,7 +65,7 @@ const updateProductIntoDB = async (
   payload: TUpdateProductPayload,
 ) => {
   const updateData: Partial<TCreateProductPayload> & {
-    status?: TProductStatus;
+    status?: ReturnType<typeof getProductStatus>;
   } = {};
 
   if (payload.name !== undefined) {
@@ -110,7 +106,7 @@ const updateProductIntoDB = async (
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  return product;
+  return attachProductStockInfo(product);
 };
 
 const deleteProductFromDB = async (id: string) => {
@@ -130,7 +126,7 @@ const deleteProductFromDB = async (id: string) => {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  return product;
+  return attachProductStockInfo(product);
 };
 
 export const ProductServices = {

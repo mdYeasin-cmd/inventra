@@ -1,7 +1,9 @@
 import httpStatus from "http-status";
 import mongoose from "mongoose";
 import AppError from "../../errors/AppError";
+import InsufficientStockError from "../../errors/InsufficientStockError";
 import { Product } from "../Product/product.model";
+import { getProductStatus } from "../Product/product.utils";
 import {
   orderStatuses,
   type TCreateOrderPayload,
@@ -17,10 +19,6 @@ const orderStatusTransitions: Record<TOrderStatus, TOrderStatus[]> = {
   Shipped: ["Delivered"],
   Delivered: [],
   Cancelled: [],
-};
-
-const getProductStatus = (stockQuantity: number) => {
-  return stockQuantity === 0 ? "Out of Stock" : "Active";
 };
 
 const parseDate = (dateString: string, isEndDate = false) => {
@@ -76,7 +74,7 @@ const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
       products.map((product) => [product._id.toString(), product]),
     );
 
-    const orderProducts = payload.products.map((item) => {
+    const orderProducts = payload.products.map((item, itemIndex) => {
       const product = productMap.get(item.product);
 
       if (!product) {
@@ -84,9 +82,12 @@ const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
       }
 
       if (item.quantity > product.stockQuantity) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          `${product.name} does not have enough stock`,
+        throw new InsufficientStockError(
+          product._id.toString(),
+          product.name,
+          item.quantity,
+          product.stockQuantity,
+          itemIndex,
         );
       }
 
@@ -102,17 +103,52 @@ const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
       return total + item.quantity * item.price;
     }, 0);
 
-    for (const item of payload.products) {
+    for (const [itemIndex, item] of payload.products.entries()) {
       const product = productMap.get(item.product);
 
       if (!product) {
         throw new AppError(httpStatus.BAD_REQUEST, "Product not found");
       }
 
-      product.stockQuantity -= item.quantity;
-      product.status = getProductStatus(product.stockQuantity);
+      const updatedProduct = await Product.findOneAndUpdate(
+        {
+          _id: item.product,
+          isDeleted: false,
+          stockQuantity: { $gte: item.quantity },
+        },
+        {
+          $inc: {
+            stockQuantity: -item.quantity,
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session,
+        },
+      );
 
-      await product.save({ session });
+      if (!updatedProduct) {
+        const latestProduct = await Product.findOne({
+          _id: item.product,
+          isDeleted: false,
+        }).session(session);
+
+        if (!latestProduct) {
+          throw new AppError(httpStatus.BAD_REQUEST, "Product not found");
+        }
+
+        throw new InsufficientStockError(
+          latestProduct._id.toString(),
+          latestProduct.name,
+          item.quantity,
+          latestProduct.stockQuantity,
+          itemIndex,
+        );
+      }
+
+      updatedProduct.status = getProductStatus(updatedProduct.stockQuantity);
+      await updatedProduct.save({ session });
     }
 
     const [order] = await Order.create(
@@ -251,10 +287,26 @@ const updateOrderStatusIntoDB = async (
         throw new AppError(httpStatus.BAD_REQUEST, "Product not found");
       }
 
-      product.stockQuantity += item.quantity;
-      product.status = getProductStatus(product.stockQuantity);
+      const updatedProduct = await Product.findByIdAndUpdate(
+        item.product,
+        {
+          $inc: {
+            stockQuantity: item.quantity,
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session,
+        },
+      );
 
-      await product.save({ session });
+      if (!updatedProduct) {
+        throw new AppError(httpStatus.BAD_REQUEST, "Product not found");
+      }
+
+      updatedProduct.status = getProductStatus(updatedProduct.stockQuantity);
+      await updatedProduct.save({ session });
     }
 
     orderToCancel.status = "Cancelled";
