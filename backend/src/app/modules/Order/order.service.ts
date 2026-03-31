@@ -46,33 +46,57 @@ const validateOrderStatus = (status: string) => {
   }
 };
 
+const getValidatedOrderProductMap = async (
+  orderedProducts: TCreateOrderPayload["products"],
+  session: mongoose.ClientSession,
+) => {
+  const productIds = orderedProducts.map((item) => item.product);
+  const uniqueProductIds = [...new Set(productIds)];
+
+  if (uniqueProductIds.length !== productIds.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "This product is already added to the order.",
+    );
+  }
+
+  const products = await Product.find({
+    _id: { $in: uniqueProductIds },
+    isDeleted: false,
+  }).session(session);
+
+  if (products.length !== uniqueProductIds.length) {
+    throw new AppError(httpStatus.BAD_REQUEST, "One or more products not found");
+  }
+
+  const unavailableProduct = products.find((product) => product.status !== "Active");
+
+  if (unavailableProduct) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "This product is currently unavailable.",
+    );
+  }
+
+  const productMap = new Map(
+    products.map((product) => [product._id.toString(), product]),
+  );
+
+  return {
+    uniqueProductIds,
+    productMap,
+  };
+};
+
 const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
   const session = await mongoose.startSession();
 
   try {
     session.startTransaction();
 
-    const productIds = payload.products.map((item) => item.product);
-    const uniqueProductIds = [...new Set(productIds)];
-
-    if (uniqueProductIds.length !== productIds.length) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "Duplicate products are not allowed in an order",
-      );
-    }
-
-    const products = await Product.find({
-      _id: { $in: uniqueProductIds },
-      isDeleted: false,
-    }).session(session);
-
-    if (products.length !== uniqueProductIds.length) {
-      throw new AppError(httpStatus.BAD_REQUEST, "One or more products not found");
-    }
-
-    const productMap = new Map(
-      products.map((product) => [product._id.toString(), product]),
+    const { uniqueProductIds, productMap } = await getValidatedOrderProductMap(
+      payload.products,
+      session,
     );
 
     const orderProducts = payload.products.map((item, itemIndex) => {
