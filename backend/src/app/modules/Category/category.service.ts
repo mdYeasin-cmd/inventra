@@ -5,6 +5,7 @@ import {
   type TUpdateCategoryPayload,
 } from "./category.interface";
 import { Category } from "./category.model";
+import { Product } from "../Product/product.model";
 
 const createCategoryIntoDB = async (payload: TCreateCategoryPayload) => {
   const category = await Category.create({
@@ -59,18 +60,26 @@ const updateCategoryIntoDB = async (
 };
 
 const deleteCategoryFromDB = async (id: string) => {
-  const category = await Category.findOneAndUpdate(
-    { _id: id, isDeleted: false },
-    { isDeleted: true },
-    {
-      new: true,
-      runValidators: true,
-    },
-  );
+  const category = await Category.findOne({ _id: id, isDeleted: false });
 
   if (!category) {
     throw new AppError(httpStatus.NOT_FOUND, "Category not found");
   }
+
+  const assignedProduct = await Product.findOne({
+    category: id,
+    isDeleted: false,
+  });
+
+  if (assignedProduct) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "Category cannot be deleted because products are assigned to it",
+    );
+  }
+
+  category.isDeleted = true;
+  await category.save();
 
   return category;
 };
