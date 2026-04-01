@@ -49,6 +49,7 @@ const loginUserIntoDB = async (loginData: ILoginUser) => {
 
   const jwtPayload = {
     userId: user?._id,
+    name: user?.name,
     role: user?.role,
   };
 

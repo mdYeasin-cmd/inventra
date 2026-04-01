@@ -1,19 +1,26 @@
-type StoredSession = {
+export type StoredSession = {
   accessToken: string
   refreshToken: string
   userId?: string
+  name?: string
   role?: string
   exp?: number
 }
 
 type TokenPayload = {
   userId?: string
+  name?: string
   role?: string
   exp?: number
 }
 
 const ACCESS_TOKEN_KEY = "inventra.accessToken"
 const REFRESH_TOKEN_KEY = "inventra.refreshToken"
+const AUTH_STORAGE_EVENT = "inventra-auth-change"
+
+let cachedAccessToken: string | null = null
+let cachedRefreshToken: string | null = null
+let cachedSession: StoredSession | null = null
 
 function canUseStorage() {
   return typeof window !== "undefined"
@@ -36,6 +43,34 @@ function decodeTokenPayload(token: string): TokenPayload | null {
   }
 }
 
+function buildStoredSession(
+  accessToken: string | null,
+  refreshToken: string | null
+): StoredSession | null {
+  if (!accessToken || !refreshToken) {
+    return null
+  }
+
+  const payload = decodeTokenPayload(accessToken)
+
+  return {
+    accessToken,
+    refreshToken,
+    userId: payload?.userId,
+    name: payload?.name,
+    role: payload?.role,
+    exp: payload?.exp,
+  }
+}
+
+function notifyAuthStoreChange() {
+  if (!canUseStorage()) {
+    return
+  }
+
+  window.dispatchEvent(new Event(AUTH_STORAGE_EVENT))
+}
+
 export function setAuthTokens(accessToken: string, refreshToken: string) {
   if (!canUseStorage()) {
     return
@@ -43,6 +78,7 @@ export function setAuthTokens(accessToken: string, refreshToken: string) {
 
   window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken)
   window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
+  notifyAuthStoreChange()
 }
 
 export function getAccessToken() {
@@ -68,23 +104,53 @@ export function clearAuthTokens() {
 
   window.localStorage.removeItem(ACCESS_TOKEN_KEY)
   window.localStorage.removeItem(REFRESH_TOKEN_KEY)
+  notifyAuthStoreChange()
 }
 
-export function getStoredSession(): StoredSession | null {
+export function getSessionSnapshot(): StoredSession | null {
   const accessToken = getAccessToken()
   const refreshToken = getRefreshToken()
 
-  if (!accessToken || !refreshToken) {
-    return null
+  if (
+    accessToken === cachedAccessToken &&
+    refreshToken === cachedRefreshToken
+  ) {
+    return cachedSession
   }
 
-  const payload = decodeTokenPayload(accessToken)
+  cachedAccessToken = accessToken
+  cachedRefreshToken = refreshToken
+  cachedSession = buildStoredSession(accessToken, refreshToken)
 
-  return {
-    accessToken,
-    refreshToken,
-    userId: payload?.userId,
-    role: payload?.role,
-    exp: payload?.exp,
+  return cachedSession
+}
+
+export function subscribeToSessionStore(listener: () => void) {
+  if (!canUseStorage()) {
+    return () => {}
   }
+
+  function handleStorageChange(event: StorageEvent) {
+    if (
+      event.key !== null &&
+      event.key !== ACCESS_TOKEN_KEY &&
+      event.key !== REFRESH_TOKEN_KEY
+    ) {
+      return
+    }
+
+    listener()
+  }
+
+  window.addEventListener("storage", handleStorageChange)
+  window.addEventListener(AUTH_STORAGE_EVENT, listener)
+
+  return () => {
+    window.removeEventListener("storage", handleStorageChange)
+    window.removeEventListener(AUTH_STORAGE_EVENT, listener)
+  }
+}
+
+export function getStoredSession(): StoredSession | null {
+  return getSessionSnapshot()
 }

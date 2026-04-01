@@ -2,12 +2,11 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import * as React from "react"
-
 import { Button } from "@/components/ui/button"
 import { AuthService } from "@/services/auth.service"
 import { getAccessToken, setAuthTokens } from "@/services/auth-storage"
 import { isApiClientError } from "@/services/http"
+import { useEffect, useState } from "react"
 
 type LoginValues = {
   email: string
@@ -39,11 +38,11 @@ function validateLogin(values: LoginValues) {
 
 export default function LoginPage() {
   const router = useRouter()
-  const [values, setValues] = React.useState(initialValues)
-  const [errors, setErrors] = React.useState<LoginErrors>({})
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [values, setValues] = useState(initialValues)
+  const [errors, setErrors] = useState<LoginErrors>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (getAccessToken()) {
       router.replace("/dashboard")
     }
