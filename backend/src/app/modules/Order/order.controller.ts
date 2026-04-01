@@ -17,7 +17,7 @@ const getQueryValue = (value: unknown) => {
 };
 
 const createOrder = catchAsync(async (req: Request, res: Response) => {
-  const result = await OrderServices.createOrderIntoDB(req.body);
+  const result = await OrderServices.createOrderIntoDB(req.body, req.user);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
@@ -56,7 +56,7 @@ const getSingleOrder = catchAsync(async (req: Request, res: Response) => {
 
 const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const result = await OrderServices.updateOrderStatusIntoDB(id, req.body);
+  const result = await OrderServices.updateOrderStatusIntoDB(id, req.body, req.user);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

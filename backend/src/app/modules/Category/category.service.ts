@@ -1,5 +1,7 @@
 import httpStatus from "http-status";
 import AppError from "../../errors/AppError";
+import type { IAuthUser } from "../../interfaces/auth";
+import { ActivityLogServices } from "../ActivityLog/activityLog.service";
 import {
   type TCreateCategoryPayload,
   type TUpdateCategoryPayload,
@@ -7,9 +9,23 @@ import {
 import { Category } from "./category.model";
 import { Product } from "../Product/product.model";
 
-const createCategoryIntoDB = async (payload: TCreateCategoryPayload) => {
+const createCategoryIntoDB = async (
+  payload: TCreateCategoryPayload,
+  authUser?: IAuthUser,
+) => {
   const category = await Category.create({
     name: payload.name.trim(),
+  });
+
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "category_created",
+    message: `Category "${category.name}" created${authUser?.name ? ` by ${authUser.name}` : ""}`,
+    actor: authUser,
+    entityType: "category",
+    entityId: category._id.toString(),
+    metadata: {
+      categoryName: category.name,
+    },
   });
 
   return category;
@@ -36,6 +52,7 @@ const getSingleCategoryFromDB = async (id: string) => {
 const updateCategoryIntoDB = async (
   id: string,
   payload: TUpdateCategoryPayload,
+  authUser?: IAuthUser,
 ) => {
   const updateData: TUpdateCategoryPayload = {};
 
@@ -56,10 +73,21 @@ const updateCategoryIntoDB = async (
     throw new AppError(httpStatus.NOT_FOUND, "Category not found");
   }
 
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "category_updated",
+    message: `Category "${category.name}" updated${authUser?.name ? ` by ${authUser.name}` : ""}`,
+    actor: authUser,
+    entityType: "category",
+    entityId: category._id.toString(),
+    metadata: {
+      categoryName: category.name,
+    },
+  });
+
   return category;
 };
 
-const deleteCategoryFromDB = async (id: string) => {
+const deleteCategoryFromDB = async (id: string, authUser?: IAuthUser) => {
   const category = await Category.findOne({ _id: id, isDeleted: false });
 
   if (!category) {
@@ -80,6 +108,17 @@ const deleteCategoryFromDB = async (id: string) => {
 
   category.isDeleted = true;
   await category.save();
+
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "category_deleted",
+    message: `Category "${category.name}" deleted${authUser?.name ? ` by ${authUser.name}` : ""}`,
+    actor: authUser,
+    entityType: "category",
+    entityId: category._id.toString(),
+    metadata: {
+      categoryName: category.name,
+    },
+  });
 
   return category;
 };

@@ -8,6 +8,16 @@ export interface IDashboardProductSummaryItem {
   inventoryState: TDashboardProductState;
 }
 
+export interface IDashboardRecentActivityItem {
+  _id: string;
+  type: string;
+  message: string;
+  actorName: string;
+  entityType: string;
+  entityId?: string;
+  createdAt?: Date;
+}
+
 export interface IDashboardOverview {
   totalOrdersToday: number;
   pendingOrdersToday: number;
@@ -15,4 +25,5 @@ export interface IDashboardOverview {
   revenueToday: number;
   lowStockItemsCount: number;
   productSummary: IDashboardProductSummaryItem[];
+  recentActivities: IDashboardRecentActivityItem[];
 }

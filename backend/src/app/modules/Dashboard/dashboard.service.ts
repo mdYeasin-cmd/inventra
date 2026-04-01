@@ -1,3 +1,4 @@
+import { ActivityLogServices } from "../ActivityLog/activityLog.service";
 import { Order } from "../Order/order.model";
 import { Product } from "../Product/product.model";
 import type {
@@ -58,6 +59,7 @@ const getDashboardOverviewFromDB = async (): Promise<IDashboardOverview> => {
     revenueAggregation,
     lowStockItemsCount,
     products,
+    recentActivityLogs,
   ] = await Promise.all([
     Order.countDocuments({
       isDeleted: false,
@@ -111,6 +113,7 @@ const getDashboardOverviewFromDB = async (): Promise<IDashboardOverview> => {
     Product.find({ isDeleted: false })
       .select("name stockQuantity minimumStockThreshold")
       .lean(),
+    ActivityLogServices.getRecentActivityLogsFromDB(),
   ]);
 
   const productSummary = products
@@ -153,6 +156,15 @@ const getDashboardOverviewFromDB = async (): Promise<IDashboardOverview> => {
     revenueToday: revenueAggregation[0]?.totalRevenue ?? 0,
     lowStockItemsCount,
     productSummary,
+    recentActivities: recentActivityLogs.map((activityLog) => ({
+      _id: activityLog._id.toString(),
+      type: activityLog.type,
+      message: activityLog.message,
+      actorName: activityLog.actorName ?? "System",
+      entityType: activityLog.entityType,
+      entityId: activityLog.entityId,
+      createdAt: activityLog.createdAt,
+    })),
   };
 };
 

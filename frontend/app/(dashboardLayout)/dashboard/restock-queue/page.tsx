@@ -415,7 +415,7 @@ export default function RestockQueuePage() {
   function queueRestockAction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!restockDialogItem || !session.userId) {
+    if (!restockDialogItem || !canMutate) {
       setRestockFormErrors({
         form: "Unable to identify the current user for this action.",
       })
@@ -434,7 +434,6 @@ export default function RestockQueuePage() {
       item: restockDialogItem,
       payload: {
         stockQuantity: payload.stockQuantity,
-        updatedBy: session.userId,
         ...(payload.notes ? { notes: payload.notes } : {}),
       },
     })
@@ -443,7 +442,7 @@ export default function RestockQueuePage() {
   function queueRemoveAction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    if (!removeDialogItem || !session.userId) {
+    if (!removeDialogItem || !canMutate) {
       setRemoveFormErrors({
         form: "Unable to identify the current user for this action.",
       })
@@ -456,7 +455,6 @@ export default function RestockQueuePage() {
       type: "remove",
       item: removeDialogItem,
       payload: {
-        updatedBy: session.userId,
         ...(notes ? { notes } : {}),
       },
     })

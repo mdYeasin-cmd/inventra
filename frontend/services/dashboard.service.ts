@@ -1,5 +1,6 @@
 import { getAccessToken } from "@/services/auth-storage"
 import { request } from "@/services/http"
+import type { ActivityLogItem } from "@/services/activity-log.service"
 
 export type DashboardProductSummaryItem = {
   _id: string
@@ -16,6 +17,7 @@ export type DashboardOverview = {
   revenueToday: number
   lowStockItemsCount: number
   productSummary: DashboardProductSummaryItem[]
+  recentActivities: ActivityLogItem[]
 }
 
 function getRequestHeaders() {

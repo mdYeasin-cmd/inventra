@@ -1,4 +1,6 @@
 import express from "express";
+import auth from "../middlewares/auth";
+import { ActivityLogRoutes } from "../modules/ActivityLog/activityLog.route";
 import { UserRoutes } from "../modules/User/user.route.js";
 import { AuthRoutes } from "../modules/auth/auth.route.js";
 import { CategoryRoutes } from "../modules/Category/category.route";
@@ -21,25 +23,42 @@ const moduleRoutes = [
   {
     path: "/categories",
     route: CategoryRoutes,
+    requiresAuth: true,
   },
   {
     path: "/dashboard",
     route: DashboardRoutes,
+    requiresAuth: true,
   },
   {
     path: "/products",
     route: ProductRoutes,
+    requiresAuth: true,
   },
   {
     path: "/orders",
     route: OrderRoutes,
+    requiresAuth: true,
   },
   {
     path: "/restock-queue",
     route: RestockQueueRoutes,
+    requiresAuth: true,
+  },
+  {
+    path: "/activity-logs",
+    route: ActivityLogRoutes,
+    requiresAuth: true,
   },
 ];
 
-moduleRoutes.forEach((route) => router.use(route.path, route.route));
+moduleRoutes.forEach((route) => {
+  if (route.requiresAuth) {
+    router.use(route.path, auth, route.route);
+    return;
+  }
+
+  router.use(route.path, route.route);
+});
 
 export default router;

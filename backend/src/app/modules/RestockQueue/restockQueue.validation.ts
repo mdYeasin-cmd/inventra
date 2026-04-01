@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 const restockQueueActionBaseSchema = z.object({
-  updatedBy: z.string({ required_error: "Updated by is required" }),
   notes: z.string().trim().min(1, "Notes cannot be empty").optional(),
 });
 

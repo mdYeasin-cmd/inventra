@@ -32,11 +32,9 @@ export interface TRestockQueueFilters {
 
 export interface TRestockQueueRestockPayload {
   stockQuantity: number;
-  updatedBy: string;
   notes?: string;
 }
 
 export interface TRemoveRestockQueuePayload {
-  updatedBy: string;
   notes?: string;
 }

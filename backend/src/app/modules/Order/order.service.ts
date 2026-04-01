@@ -1,7 +1,9 @@
 import httpStatus from "http-status";
 import mongoose from "mongoose";
+import type { IAuthUser } from "../../interfaces/auth";
 import AppError from "../../errors/AppError";
 import InsufficientStockError from "../../errors/InsufficientStockError";
+import { ActivityLogServices } from "../ActivityLog/activityLog.service";
 import { Product } from "../Product/product.model";
 import { getProductStatus } from "../Product/product.utils";
 import { RestockQueueServices } from "../RestockQueue/restockQueue.service";
@@ -38,6 +40,10 @@ const parseDate = (dateString: string, isEndDate = false) => {
   }
 
   return date;
+};
+
+const formatOrderReference = (orderId: string) => {
+  return `#${orderId.slice(-8).toUpperCase()}`;
 };
 
 const validateOrderStatus = (status: string) => {
@@ -88,7 +94,10 @@ const getValidatedOrderProductMap = async (
   };
 };
 
-const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
+const createOrderIntoDB = async (
+  payload: TCreateOrderPayload,
+  authUser?: IAuthUser,
+) => {
   const session = await mongoose.startSession();
 
   try {
@@ -178,6 +187,8 @@ const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
 
     await RestockQueueServices.syncRestockQueueForProducts(uniqueProductIds, {
       session,
+      updatedBy: authUser?.userId,
+      activityActor: authUser,
     });
 
     const [order] = await Order.create(
@@ -191,6 +202,21 @@ const createOrderIntoDB = async (payload: TCreateOrderPayload) => {
       ],
       { session },
     );
+
+    await ActivityLogServices.createActivityLogIntoDB({
+      type: "order_created",
+      message: `Order ${formatOrderReference(order._id.toString())} created${authUser?.name ? ` by ${authUser.name}` : ""}`,
+      actor: authUser,
+      entityType: "order",
+      entityId: order._id.toString(),
+      metadata: {
+        customerName: order.customerName,
+        status: order.status,
+        totalPrice: order.totalPrice,
+        itemCount: order.products.reduce((count, item) => count + item.quantity, 0),
+      },
+      session,
+    });
 
     await session.commitTransaction();
 
@@ -261,6 +287,7 @@ const getSingleOrderFromDB = async (id: string) => {
 const updateOrderStatusIntoDB = async (
   id: string,
   payload: TUpdateOrderStatusPayload,
+  authUser?: IAuthUser,
 ) => {
   const existingOrder = await Order.findOne({ _id: id, isDeleted: false });
 
@@ -273,6 +300,7 @@ const updateOrderStatusIntoDB = async (
   }
 
   const allowedStatuses = orderStatusTransitions[existingOrder.status];
+  const previousStatus = existingOrder.status;
 
   if (!allowedStatuses.includes(payload.status)) {
     throw new AppError(httpStatus.BAD_REQUEST, "Invalid order status transition");
@@ -281,6 +309,19 @@ const updateOrderStatusIntoDB = async (
   if (payload.status !== "Cancelled") {
     existingOrder.status = payload.status;
     await existingOrder.save();
+
+    await ActivityLogServices.createActivityLogIntoDB({
+      type: "order_status_changed",
+      message: `Order ${formatOrderReference(existingOrder._id.toString())} marked as ${payload.status}${authUser?.name ? ` by ${authUser.name}` : ""}`,
+      actor: authUser,
+      entityType: "order",
+      entityId: existingOrder._id.toString(),
+      metadata: {
+        customerName: existingOrder.customerName,
+        previousStatus,
+        status: payload.status,
+      },
+    });
 
     return existingOrder;
   }
@@ -340,10 +381,26 @@ const updateOrderStatusIntoDB = async (
 
     await RestockQueueServices.syncRestockQueueForProducts(productIds, {
       session,
+      updatedBy: authUser?.userId,
+      activityActor: authUser,
     });
 
     orderToCancel.status = "Cancelled";
     await orderToCancel.save({ session });
+
+    await ActivityLogServices.createActivityLogIntoDB({
+      type: "order_status_changed",
+      message: `Order ${formatOrderReference(orderToCancel._id.toString())} marked as Cancelled${authUser?.name ? ` by ${authUser.name}` : ""}`,
+      actor: authUser,
+      entityType: "order",
+      entityId: orderToCancel._id.toString(),
+      metadata: {
+        customerName: orderToCancel.customerName,
+        previousStatus,
+        status: "Cancelled",
+      },
+      session,
+    });
 
     await session.commitTransaction();
 

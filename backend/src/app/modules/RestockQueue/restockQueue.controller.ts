@@ -44,7 +44,11 @@ const getSingleRestockQueueItem = catchAsync(async (req: Request, res: Response)
 
 const restockQueueItem = catchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const result = await RestockQueueServices.restockQueueItemIntoDB(id, req.body);
+  const result = await RestockQueueServices.restockQueueItemIntoDB(
+    id,
+    req.body,
+    req.user,
+  );
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -56,7 +60,11 @@ const restockQueueItem = catchAsync(async (req: Request, res: Response) => {
 
 const removeRestockQueueItem = catchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const result = await RestockQueueServices.removeRestockQueueItemFromDB(id, req.body);
+  const result = await RestockQueueServices.removeRestockQueueItemFromDB(
+    id,
+    req.body,
+    req.user,
+  );
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

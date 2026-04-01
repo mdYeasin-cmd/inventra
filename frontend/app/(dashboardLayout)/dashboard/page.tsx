@@ -1,9 +1,17 @@
 "use client"
 
-import { ArrowRight, Boxes, ClipboardList, LayoutDashboard, RefreshCw } from "lucide-react"
+import {
+  ArrowRight,
+  Boxes,
+  ClipboardList,
+  History,
+  LayoutDashboard,
+  RefreshCw,
+} from "lucide-react"
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { ActivityLogList } from "@/components/activity-log-list"
 import { DashboardFeedbackBanner } from "@/components/dashboard-feedback-banner"
 import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { DashboardStatCard } from "@/components/dashboard-stat-card"
@@ -215,6 +223,31 @@ export default function DashboardPage() {
           </div>
 
           <div className="rounded-3xl border border-border/60 bg-background p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-4 border-b border-border/60 pb-4">
+              <div>
+                <h2 className="text-lg font-semibold">Activity log</h2>
+                <p className="text-sm text-muted-foreground">
+                  The latest operational events across your workspace.
+                </p>
+              </div>
+              <Button asChild variant="outline" className="rounded-xl">
+                <Link href="/dashboard/activity-log">
+                  <History className="size-4" />
+                  View all
+                </Link>
+              </Button>
+            </div>
+
+            <ActivityLogList
+              className="mt-4"
+              items={overview?.recentActivities ?? []}
+              isLoading={isLoading}
+              emptyMessage="No recent activity yet."
+              compact
+            />
+          </div>
+
+          <div className="rounded-3xl border border-border/60 bg-background p-5 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">Quick links</h2>
@@ -245,6 +278,11 @@ export default function DashboardPage() {
                   href: "/dashboard/restock-queue",
                   label: "Restock Queue",
                   description: "Resolve low-stock items",
+                },
+                {
+                  href: "/dashboard/activity-log",
+                  label: "Activity Log",
+                  description: "Review recent system actions",
                 },
               ].map((link) => (
                 <Link

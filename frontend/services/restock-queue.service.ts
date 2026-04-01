@@ -49,12 +49,10 @@ export type RestockQueueFilters = {
 
 export type RestockQueueRestockPayload = {
   stockQuantity: number
-  updatedBy: string
   notes?: string
 }
 
 export type RemoveRestockQueueItemPayload = {
-  updatedBy: string
   notes?: string
 }
 

@@ -3,6 +3,7 @@
 import {
   Boxes,
   ClipboardList,
+  History,
   Layers,
   LayoutDashboard,
   RefreshCw,
@@ -44,6 +45,11 @@ const mainNavigation: NavigationItem[] = [
     title: "Restock Queue",
     icon: RefreshCw,
     href: "/dashboard/restock-queue",
+  },
+  {
+    title: "Activity Log",
+    icon: History,
+    href: "/dashboard/activity-log",
   },
 ] as const
 

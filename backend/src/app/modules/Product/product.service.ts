@@ -1,5 +1,7 @@
 import httpStatus from "http-status";
 import AppError from "../../errors/AppError";
+import type { IAuthUser } from "../../interfaces/auth";
+import { ActivityLogServices } from "../ActivityLog/activityLog.service";
 import { Category } from "../Category/category.model";
 import { RestockQueueServices } from "../RestockQueue/restockQueue.service";
 import {
@@ -17,7 +19,10 @@ const ensureCategoryExists = async (categoryId: string) => {
   }
 };
 
-const createProductIntoDB = async (payload: TCreateProductPayload) => {
+const createProductIntoDB = async (
+  payload: TCreateProductPayload,
+  authUser?: IAuthUser,
+) => {
   await ensureCategoryExists(payload.category);
 
   const product = await Product.create({
@@ -29,14 +34,34 @@ const createProductIntoDB = async (payload: TCreateProductPayload) => {
     status: getProductStatus(payload.stockQuantity),
   });
 
-  await RestockQueueServices.syncRestockQueueForProduct(product._id);
+  await RestockQueueServices.syncRestockQueueForProduct(product._id, {
+    updatedBy: authUser?.userId,
+    activityActor: authUser,
+  });
 
   const populatedProduct = await Product.findById(product._id).populate({
     path: "category",
     select: "name",
   });
 
-  return populatedProduct ? attachProductStockInfo(populatedProduct) : populatedProduct;
+  const formattedProduct = populatedProduct
+    ? attachProductStockInfo(populatedProduct)
+    : populatedProduct;
+
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "product_created",
+    message: `Product "${product.name}" created${authUser?.name ? ` by ${authUser.name}` : ""}`,
+    actor: authUser,
+    entityType: "product",
+    entityId: product._id.toString(),
+    metadata: {
+      productName: product.name,
+      stockQuantity: product.stockQuantity,
+      minimumStockThreshold: product.minimumStockThreshold,
+    },
+  });
+
+  return formattedProduct;
 };
 
 const getAllProductsFromDB = async () => {
@@ -66,7 +91,14 @@ const getSingleProductFromDB = async (id: string) => {
 const updateProductIntoDB = async (
   id: string,
   payload: TUpdateProductPayload,
+  authUser?: IAuthUser,
 ) => {
+  const existingProduct = await Product.findOne({ _id: id, isDeleted: false });
+
+  if (!existingProduct) {
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
   const updateData: Partial<TCreateProductPayload> & {
     status?: ReturnType<typeof getProductStatus>;
   } = {};
@@ -109,12 +141,36 @@ const updateProductIntoDB = async (
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  await RestockQueueServices.syncRestockQueueForProduct(product._id);
+  await RestockQueueServices.syncRestockQueueForProduct(product._id, {
+    updatedBy: authUser?.userId,
+    activityActor: authUser,
+  });
 
-  return attachProductStockInfo(product);
+  const stockChanged =
+    payload.stockQuantity !== undefined &&
+    payload.stockQuantity !== existingProduct.stockQuantity;
+  const formattedProduct = attachProductStockInfo(product);
+
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "product_updated",
+    message: stockChanged
+      ? `Stock updated for "${product.name}"${authUser?.name ? ` by ${authUser.name}` : ""}`
+      : `Product "${product.name}" updated${authUser?.name ? ` by ${authUser.name}` : ""}`,
+    actor: authUser,
+    entityType: "product",
+    entityId: product._id.toString(),
+    metadata: {
+      productName: product.name,
+      previousStockQuantity: existingProduct.stockQuantity,
+      stockQuantity: product.stockQuantity,
+      minimumStockThreshold: product.minimumStockThreshold,
+    },
+  });
+
+  return formattedProduct;
 };
 
-const deleteProductFromDB = async (id: string) => {
+const deleteProductFromDB = async (id: string, authUser?: IAuthUser) => {
   const product = await Product.findOneAndUpdate(
     { _id: id, isDeleted: false },
     { isDeleted: true },
@@ -131,9 +187,25 @@ const deleteProductFromDB = async (id: string) => {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  await RestockQueueServices.syncRestockQueueForProduct(product._id);
+  await RestockQueueServices.syncRestockQueueForProduct(product._id, {
+    updatedBy: authUser?.userId,
+    activityActor: authUser,
+  });
 
-  return attachProductStockInfo(product);
+  const formattedProduct = attachProductStockInfo(product);
+
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "product_deleted",
+    message: `Product "${product.name}" deleted${authUser?.name ? ` by ${authUser.name}` : ""}`,
+    actor: authUser,
+    entityType: "product",
+    entityId: product._id.toString(),
+    metadata: {
+      productName: product.name,
+    },
+  });
+
+  return formattedProduct;
 };
 
 export const ProductServices = {

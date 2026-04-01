@@ -1,6 +1,8 @@
 import httpStatus from "http-status";
 import mongoose, { type ClientSession, type Types } from "mongoose";
+import type { IAuthUser } from "../../interfaces/auth";
 import AppError from "../../errors/AppError";
+import { ActivityLogServices } from "../ActivityLog/activityLog.service";
 import { Product } from "../Product/product.model";
 import { getProductStatus } from "../Product/product.utils";
 import { User } from "../User/user.model";
@@ -20,6 +22,7 @@ interface TSyncRestockQueueOptions {
   session?: ClientSession;
   updatedBy?: string;
   notes?: string;
+  activityActor?: IAuthUser;
 }
 
 const restockQueuePopulate = [
@@ -45,6 +48,10 @@ const normalizeNotes = (notes?: string) => {
   const trimmedNotes = notes.trim();
 
   return trimmedNotes.length > 0 ? trimmedNotes : undefined;
+};
+
+const getActorSuffix = (authUser?: IAuthUser) => {
+  return authUser?.name ? ` by ${authUser.name}` : "";
 };
 
 const validateRestockQueueStatus = (status: string) => {
@@ -241,6 +248,21 @@ const syncRestockQueueForProduct = async (
       options.session ? { session: options.session } : {},
     );
 
+    await ActivityLogServices.createActivityLogIntoDB({
+      type: "restock_queue_added",
+      message: `Product "${product.name}" added to Restock Queue${getActorSuffix(options.activityActor)}`,
+      actor: options.activityActor,
+      entityType: "restockQueue",
+      entityId: restockQueueItem._id.toString(),
+      metadata: {
+        productId: product._id.toString(),
+        productName: product.name,
+        currentStock: product.stockQuantity,
+        minimumStockThreshold: product.minimumStockThreshold,
+      },
+      session: options.session,
+    });
+
     return restockQueueItem;
   }
 
@@ -322,13 +344,18 @@ const getSingleRestockQueueFromDB = async (id: string) => {
 const restockQueueItemIntoDB = async (
   id: string,
   payload: TRestockQueueRestockPayload,
+  authUser?: IAuthUser,
 ) => {
   const session = await mongoose.startSession();
 
   try {
     session.startTransaction();
 
-    await ensureUserExists(payload.updatedBy, session);
+    if (!authUser?.userId) {
+      throw new AppError(httpStatus.UNAUTHORIZED, "Authenticated user is required");
+    }
+
+    await ensureUserExists(authUser.userId, session);
 
     const restockQueueItem = await getPendingRestockQueueItemById(id, session);
 
@@ -352,14 +379,32 @@ const restockQueueItemIntoDB = async (
       throw new AppError(httpStatus.NOT_FOUND, "Product not found");
     }
 
+    const previousStockQuantity = product.stockQuantity;
     product.stockQuantity = payload.stockQuantity;
     product.status = getProductStatus(payload.stockQuantity);
     await product.save({ session });
 
     await syncRestockQueueForProduct(product._id, {
       session,
-      updatedBy: payload.updatedBy,
+      updatedBy: authUser.userId,
       notes: payload.notes,
+      activityActor: authUser,
+    });
+
+    await ActivityLogServices.createActivityLogIntoDB({
+      type: "restock_completed",
+      message: `Restock completed for "${product.name}"${getActorSuffix(authUser)}`,
+      actor: authUser,
+      entityType: "restockQueue",
+      entityId: restockQueueItem._id.toString(),
+      metadata: {
+        productId: product._id.toString(),
+        productName: product.name,
+        previousStockQuantity,
+        stockQuantity: payload.stockQuantity,
+        notes: normalizeNotes(payload.notes),
+      },
+      session,
     });
 
     await session.commitTransaction();
@@ -382,8 +427,13 @@ const restockQueueItemIntoDB = async (
 const removeRestockQueueItemFromDB = async (
   id: string,
   payload: TRemoveRestockQueuePayload,
+  authUser?: IAuthUser,
 ) => {
-  await ensureUserExists(payload.updatedBy);
+  if (!authUser?.userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "Authenticated user is required");
+  }
+
+  await ensureUserExists(authUser.userId);
 
   const restockQueueItem = await RestockQueue.findOne({
     _id: id,
@@ -397,9 +447,27 @@ const removeRestockQueueItemFromDB = async (
 
   restockQueueItem.status = "removed";
   restockQueueItem.resolvedAt = new Date();
-  restockQueueItem.updatedBy = new mongoose.Types.ObjectId(payload.updatedBy);
+  restockQueueItem.updatedBy = new mongoose.Types.ObjectId(authUser.userId);
   restockQueueItem.notes = normalizeNotes(payload.notes);
   await restockQueueItem.save();
+
+  const populatedProduct = restockQueueItem.product as unknown as {
+    _id: Types.ObjectId;
+    name: string;
+  };
+
+  await ActivityLogServices.createActivityLogIntoDB({
+    type: "restock_removed",
+    message: `Product "${populatedProduct.name}" removed from Restock Queue${getActorSuffix(authUser)}`,
+    actor: authUser,
+    entityType: "restockQueue",
+    entityId: restockQueueItem._id.toString(),
+    metadata: {
+      productId: populatedProduct._id.toString(),
+      productName: populatedProduct.name,
+      notes: normalizeNotes(payload.notes),
+    },
+  });
 
   const updatedRestockQueueItem = await getPopulatedRestockQueueItem(id);
 
