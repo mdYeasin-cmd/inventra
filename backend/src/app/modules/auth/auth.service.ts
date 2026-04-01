@@ -52,7 +52,7 @@ const loginUserIntoDB = async (loginData: ILoginUser) => {
     role: user?.role,
   };
 
-  const accessToken = createToken(jwtPayload, "secret", 60); // 1 hour
+  const accessToken = createToken(jwtPayload, "secret", 60 * 60); // 1 hour
 
   const refreshToken = createToken(jwtPayload, "secret", 7 * 24 * 60 * 60); // 7 days
 

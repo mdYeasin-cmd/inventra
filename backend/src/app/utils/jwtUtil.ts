@@ -1,7 +1,8 @@
 import jwt, { JwtPayload, Secret } from "jsonwebtoken";
 import { Types } from "mongoose";
+import { envVars } from "../config/env";
 
-const JWT_SECRET: Secret = "your_jwt_secret_key";
+const JWT_SECRET: Secret = envVars.JWT_SECRET;
 
 export const createToken = (
   jwtPayload: { userId: Types.ObjectId; role: string },
