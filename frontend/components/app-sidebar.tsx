@@ -1,13 +1,11 @@
 "use client"
 
 import {
-  BarChart3,
   Boxes,
   ClipboardList,
   Layers,
   LayoutDashboard,
   RefreshCw,
-  Settings,
   X,
 } from "lucide-react"
 import Link from "next/link"
@@ -19,7 +17,7 @@ import type { DashboardSession } from "@/components/dashboard-shell"
 
 type NavigationItem = {
   title: string
-  href?: string
+  href: string
   icon: typeof LayoutDashboard
 }
 
