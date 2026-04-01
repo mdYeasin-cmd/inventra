@@ -86,7 +86,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         ) : null}
 
         <AppSidebar
-          session={session}
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
         />

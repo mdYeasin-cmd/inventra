@@ -3,16 +3,9 @@
 import { Pencil, Plus, Tag, Trash2 } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { DashboardConfirmDialog } from "@/components/dashboard-confirm-dialog"
+import { DashboardFeedbackBanner } from "@/components/dashboard-feedback-banner"
+import { DashboardPageHeader } from "@/components/dashboard-page-header"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -31,13 +24,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { cn } from "@/lib/utils"
+import { getErrorDetails } from "@/lib/api-error"
+import { formatDate } from "@/lib/dashboard-format"
 import {
   type Category,
   CategoryService,
   type CategoryPayload,
 } from "@/services/category.service"
-import { isApiClientError } from "@/services/http"
 
 type FeedbackState = {
   type: "success" | "error"
@@ -72,12 +65,6 @@ const initialFormState: FormState = {
   name: "",
 }
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-})
-
 function validateForm(values: FormState) {
   const errors: FormErrors = {}
 
@@ -86,34 +73,6 @@ function validateForm(values: FormState) {
   }
 
   return errors
-}
-
-function getErrorDetails(error: unknown, fallbackMessage: string) {
-  if (!isApiClientError(error)) {
-    return {
-      path: "",
-      message: fallbackMessage,
-    }
-  }
-
-  return {
-    path: String(error.errorSources[0]?.path ?? ""),
-    message: error.errorSources[0]?.message ?? error.message,
-  }
-}
-
-function formatDate(value?: string) {
-  if (!value) {
-    return "-"
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return "-"
-  }
-
-  return dateFormatter.format(date)
 }
 
 export default function CategoriesPage() {
@@ -314,44 +273,24 @@ export default function CategoriesPage() {
   return (
     <>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-background/90 p-6 shadow-sm backdrop-blur sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs font-medium tracking-[0.24em] text-muted-foreground uppercase">
-              <Tag className="size-3.5" />
-              Categories
-            </div>
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Category management
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                Create, update, and review product categories from one place.
-              </p>
-            </div>
-          </div>
+        <DashboardPageHeader
+          icon={Tag}
+          eyebrow="Categories"
+          title="Category management"
+          description="Create, update, and review product categories from one place."
+          actions={
+            <Button
+              type="button"
+              className="h-10 rounded-xl px-4"
+              onClick={openCreateDialog}
+            >
+              <Plus className="size-4" />
+              Add Category
+            </Button>
+          }
+        />
 
-          <Button
-            type="button"
-            className="h-10 rounded-xl px-4"
-            onClick={openCreateDialog}
-          >
-            <Plus className="size-4" />
-            Add Category
-          </Button>
-        </div>
-
-        {feedback ? (
-          <div
-            className={cn(
-              "rounded-2xl border px-4 py-3 text-sm",
-              feedback.type === "success"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                : "border-destructive/30 bg-destructive/10 text-destructive"
-            )}
-          >
-            {feedback.message}
-          </div>
-        ) : null}
+        {feedback ? <DashboardFeedbackBanner {...feedback} /> : null}
 
         <section className="overflow-hidden rounded-3xl border border-border/60 bg-background shadow-sm">
           <div className="flex flex-col gap-3 border-b border-border/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -495,39 +434,23 @@ export default function CategoriesPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
+      <DashboardConfirmDialog
         open={Boolean(confirmAction)}
+        title={confirmationCopy.title}
+        description={confirmationCopy.description}
+        actionLabel={confirmationCopy.actionLabel}
+        pendingLabel={confirmationCopy.pendingLabel}
+        actionVariant={confirmationCopy.actionVariant}
+        isPending={isActionPending}
         onOpenChange={(nextOpen) => {
           if (!nextOpen && !isActionPending) {
             setConfirmAction(null)
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmationCopy.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmationCopy.description}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActionPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={cn(
-                confirmationCopy.actionVariant === "destructive" &&
-                  "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              )}
-              disabled={isActionPending}
-              onClick={(event) => {
-                event.preventDefault()
-                void handleConfirmAction()
-              }}
-            >
-              {isActionPending ? confirmationCopy.pendingLabel : confirmationCopy.actionLabel}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={() => {
+          void handleConfirmAction()
+        }}
+      />
     </>
   )
 }

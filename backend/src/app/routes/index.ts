@@ -2,6 +2,7 @@ import express from "express";
 import { UserRoutes } from "../modules/User/user.route.js";
 import { AuthRoutes } from "../modules/auth/auth.route.js";
 import { CategoryRoutes } from "../modules/Category/category.route";
+import { DashboardRoutes } from "../modules/Dashboard/dashboard.route";
 import { OrderRoutes } from "../modules/Order/order.route";
 import { ProductRoutes } from "../modules/Product/product.route";
 import { RestockQueueRoutes } from "../modules/RestockQueue/restockQueue.route";
@@ -20,6 +21,10 @@ const moduleRoutes = [
   {
     path: "/categories",
     route: CategoryRoutes,
+  },
+  {
+    path: "/dashboard",
+    route: DashboardRoutes,
   },
   {
     path: "/products",

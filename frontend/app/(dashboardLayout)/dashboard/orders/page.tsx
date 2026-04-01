@@ -13,16 +13,10 @@ import {
 } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { DashboardConfirmDialog } from "@/components/dashboard-confirm-dialog"
+import { DashboardFeedbackBanner } from "@/components/dashboard-feedback-banner"
+import { DashboardPageHeader } from "@/components/dashboard-page-header"
+import { DashboardStatCard } from "@/components/dashboard-stat-card"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -41,8 +35,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getErrorDetails } from "@/lib/api-error"
+import { formatCurrency, formatDate } from "@/lib/dashboard-format"
+import { dashboardSelectClassName } from "@/lib/dashboard-ui"
 import { cn } from "@/lib/utils"
-import { isApiClientError } from "@/services/http"
 import {
   type CreateOrderPayload,
   type Order,
@@ -110,55 +106,8 @@ const initialCreateFormState: CreateOrderFormState = {
   products: [{ product: "", quantity: "1" }],
 }
 
-const selectClassName =
-  "flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm transition outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
-
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-})
-
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-})
-
 function createEmptyLineErrors(length: number) {
   return Array.from({ length }, () => ({}))
-}
-
-function getErrorDetails(error: unknown, fallbackMessage: string) {
-  if (!isApiClientError(error)) {
-    return {
-      path: "",
-      message: fallbackMessage,
-    }
-  }
-
-  return {
-    path: String(error.errorSources[0]?.path ?? ""),
-    message: error.errorSources[0]?.message ?? error.message,
-  }
-}
-
-function formatDate(value?: string) {
-  if (!value) {
-    return "-"
-  }
-
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return "-"
-  }
-
-  return dateFormatter.format(date)
-}
-
-function formatCurrency(value: number) {
-  return currencyFormatter.format(value)
 }
 
 function formatOrderId(value: string) {
@@ -759,41 +708,20 @@ export default function OrdersPage() {
   return (
     <>
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 rounded-3xl border border-border/60 bg-background/90 p-6 shadow-sm backdrop-blur sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-3 py-1 text-xs font-medium tracking-[0.24em] text-muted-foreground uppercase">
-              <ClipboardList className="size-3.5" />
-              Orders
-            </div>
-            <div className="space-y-1">
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Order management
-              </h1>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-                Create customer orders, track fulfillment, and move each order through
-                the inventory workflow.
-              </p>
-            </div>
-          </div>
+        <DashboardPageHeader
+          icon={ClipboardList}
+          eyebrow="Orders"
+          title="Order management"
+          description="Create customer orders, track fulfillment, and move each order through the inventory workflow."
+          actions={
+            <Button type="button" className="h-10 rounded-xl px-4" onClick={openCreateDialog}>
+              <Plus className="size-4" />
+              Create Order
+            </Button>
+          }
+        />
 
-          <Button type="button" className="h-10 rounded-xl px-4" onClick={openCreateDialog}>
-            <Plus className="size-4" />
-            Create Order
-          </Button>
-        </div>
-
-        {feedback ? (
-          <div
-            className={cn(
-              "rounded-2xl border px-4 py-3 text-sm",
-              feedback.type === "success"
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                : "border-destructive/30 bg-destructive/10 text-destructive"
-            )}
-          >
-            {feedback.message}
-          </div>
-        ) : null}
+        {feedback ? <DashboardFeedbackBanner {...feedback} /> : null}
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           {[
@@ -804,13 +732,7 @@ export default function OrdersPage() {
             { label: "Delivered", value: summaryCounts.delivered },
             { label: "Cancelled", value: summaryCounts.cancelled },
           ].map((summary) => (
-            <div
-              key={summary.label}
-              className="rounded-2xl border border-border/60 bg-background px-4 py-4 shadow-sm"
-            >
-              <p className="text-sm text-muted-foreground">{summary.label}</p>
-              <p className="mt-2 text-2xl font-semibold tracking-tight">{summary.value}</p>
-            </div>
+            <DashboardStatCard key={summary.label} label={summary.label} value={summary.value} />
           ))}
         </section>
 
@@ -825,7 +747,7 @@ export default function OrdersPage() {
                   id="order-status-filter"
                   value={filters.status}
                   onChange={(event) => updateFilter("status", event.target.value)}
-                  className={selectClassName}
+                  className={dashboardSelectClassName}
                 >
                   <option value="">All statuses</option>
                   {orderStatuses.map((status) => (
@@ -1084,7 +1006,7 @@ export default function OrdersPage() {
                             aria-invalid={Boolean(createFormErrors.products?.[index]?.product)}
                             disabled={isActionPending || isProductsLoading}
                             className={cn(
-                              selectClassName,
+                              dashboardSelectClassName,
                               createFormErrors.products?.[index]?.product && "border-destructive"
                             )}
                           >
@@ -1335,37 +1257,23 @@ export default function OrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
+      <DashboardConfirmDialog
         open={Boolean(confirmAction)}
+        title={confirmationCopy.title}
+        description={confirmationCopy.description}
+        actionLabel={confirmationCopy.actionLabel}
+        pendingLabel={confirmationCopy.pendingLabel}
+        actionVariant={confirmationCopy.actionVariant}
+        isPending={isActionPending}
         onOpenChange={(nextOpen) => {
           if (!nextOpen && !isActionPending) {
             setConfirmAction(null)
           }
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmationCopy.title}</AlertDialogTitle>
-            <AlertDialogDescription>{confirmationCopy.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isActionPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={cn(
-                confirmationCopy.actionVariant === "destructive" &&
-                  "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              )}
-              disabled={isActionPending}
-              onClick={(event) => {
-                event.preventDefault()
-                void handleConfirmAction()
-              }}
-            >
-              {isActionPending ? confirmationCopy.pendingLabel : confirmationCopy.actionLabel}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onConfirm={() => {
+          void handleConfirmAction()
+        }}
+      />
     </>
   )
 }

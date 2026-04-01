@@ -13,8 +13,6 @@ import { usePathname } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import type { DashboardSession } from "@/components/dashboard-shell"
-
 type NavigationItem = {
   title: string
   href: string
@@ -50,12 +48,11 @@ const mainNavigation: NavigationItem[] = [
 ] as const
 
 type AppSidebarProps = {
-  session: DashboardSession
   isOpen: boolean
   onClose: () => void
 }
 
-function AppSidebar({ session, isOpen, onClose }: AppSidebarProps) {
+function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname()
 
   return (
